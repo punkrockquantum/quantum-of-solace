@@ -83,6 +83,41 @@ export interface Projection {
   target_size: number;
   size_label: string;
   assumptions: Record<string, number>;
+  infrastructure: {
+    profile: {
+      name: string;
+      gpu_count: number;
+      grace_cpu_count: number;
+      gpu_memory_tb: number;
+      total_fast_memory_tb: number;
+      nvlink_bandwidth_tbps: number;
+      gpu_memory_bandwidth_tbps: number;
+      rack_power_kw: number;
+      usable_gpu_memory_fraction: number;
+      intra_cluster_overhead_ms: number;
+      network_round_trip_ms: number;
+      cluster_latency_target_ms: number;
+      end_to_end_latency_target_ms: number;
+      illustrative_rack_cost_per_hour_usd: number;
+    };
+    classification: string;
+    compute_basis: string;
+    compute_wall_time_seconds: number;
+    internal_latency: { value_ms: number; target_ms: number; meets_target: boolean };
+    end_to_end_latency: { value_ms: number; target_ms: number; meets_target: boolean };
+    energy_kwh: number;
+    illustrative_compute_cost_usd: number;
+    illustrative_energy_cost_usd: number;
+    memory: {
+      model: string;
+      required_gpu_memory_tb: number | null;
+      usable_gpu_memory_tb: number;
+      headroom_tb: number | null;
+      fits: boolean | null;
+    };
+    kv_cache_note: string;
+    sources: { title: string; url: string }[];
+  };
   curve: ProjectionCurvePoint[];
   crossover_size: number | null;
   headline: {
@@ -93,6 +128,7 @@ export interface Projection {
     roi_multiple: number;
     hybrid_profit_usd: number;
     classical_profit_usd: number;
+    gb300_value_per_cost: number;
   };
 }
 
@@ -103,6 +139,13 @@ export interface BenchmarkResult {
   paths: { classical: PathResult; quantum: PathResult; hybrid: PathResult };
   quality_label: string;
   projection: Projection;
+  outcomes: {
+    highest_performance: "classical" | "quantum" | "hybrid";
+    optimal_value: "classical" | "quantum" | "hybrid";
+    value_scores: Record<"classical" | "quantum" | "hybrid", number>;
+    projected_cost_usd: Record<"classical" | "quantum" | "hybrid", number>;
+    definition: string;
+  };
   provenance: {
     backend_id: string;
     backend_name: string;

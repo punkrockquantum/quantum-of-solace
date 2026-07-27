@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from qsolace.algorithms import ProgressCallback, run_comparison
-from qsolace.comparison.projection import project
+from qsolace.comparison.projection import InfrastructureProfile, project
 from qsolace.core.backend import BackendMode, QuantumBackend
 
 #: How to read the "problem size" out of each algorithm's problem dict, so the
@@ -40,7 +40,49 @@ def run_benchmark(
         "statement": _provenance_statement(info),
     }
     result["projection"] = _build_projection(algorithm_id, result)
+    result["outcomes"] = classify_outcomes(result["paths"])
     return result
+
+
+def _quality(path: dict[str, Any]) -> float:
+    return float(path.get("approximation_ratio", path.get("quality", 0.0)))
+
+
+def classify_outcomes(paths: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    """Rank measured quality separately from modelled quality/cost balance.
+
+    Highest Performance maximizes measured quality (with measured time as a
+    deterministic tie-breaker). Optimal Value uses 70% normalized measured
+    quality and 30% inverse projected rack cost. The same path can legitimately
+    win both; labels are calculated independently rather than applied wholesale.
+    """
+    profile = InfrastructureProfile()
+    keys = ("classical", "quantum", "hybrid")
+    qualities = {key: max(_quality(paths[key]), 0.0) for key in keys}
+    times = {key: max(float(paths[key]["elapsed_seconds"]), 1e-6) for key in keys}
+    costs = {
+        key: times[key] * profile.illustrative_rack_cost_per_hour_usd / 3600.0
+        for key in keys
+    }
+    max_quality = max(qualities.values(), default=1.0) or 1.0
+    min_cost = min(costs.values())
+    scores = {
+        key: 0.70 * (qualities[key] / max_quality) + 0.30 * (min_cost / costs[key])
+        for key in keys
+    }
+    performance = max(keys, key=lambda key: (qualities[key], -times[key]))
+    value = max(keys, key=lambda key: (scores[key], qualities[key], -times[key]))
+    return {
+        "highest_performance": performance,
+        "optimal_value": value,
+        "value_scores": scores,
+        "projected_cost_usd": costs,
+        "definition": (
+            "Highest Performance = maximum measured quality (measured wall time breaks ties). "
+            "Optimal Value = 70% normalized measured quality + 30% inverse projected GB300 "
+            "rack compute cost at the measured workload. Rack cost is illustrative."
+        ),
+    }
 
 
 def _build_projection(algorithm_id: str, result: dict[str, Any]) -> dict[str, Any]:

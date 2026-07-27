@@ -13,6 +13,7 @@ import type { Projection } from "../types";
 
 function money(value: number): string {
   const abs = Math.abs(value);
+  if (abs > 0 && abs < 0.01) return `$${value.toExponential(2)}`;
   if (abs >= 1e9) return `$${(value / 1e9).toFixed(1)}B`;
   if (abs >= 1e6) return `$${(value / 1e6).toFixed(1)}M`;
   if (abs >= 1e3) return `$${(value / 1e3).toFixed(1)}k`;
@@ -41,6 +42,9 @@ const CHARTS: {
 
 export default function ProjectionPanel({ projection }: { projection: Projection }) {
   const h = projection.headline;
+  const infra = projection.infrastructure;
+  const profile = infra.profile;
+  const memory = infra.memory;
   const chartData = projection.curve.map((p) => ({
     size: p.size,
     classical_time: p.classical_time,
@@ -64,6 +68,40 @@ export default function ProjectionPanel({ projection }: { projection: Projection
         <Headline label="Energy saved / instance" value={`${compact(h.energy_saved_kwh)} kWh`} good />
         <Headline label="Cost saved / instance" value={money(h.cost_saved_usd)} good />
         <Headline label="Return on compute (ROI)" value={`${compact(h.roi_multiple)}x`} good />
+      </div>
+
+      <div className="gb300-summary">
+        <div className="projection-header">
+          <h3 style={{ margin: 0 }}>{profile.name} rack-scale model</h3>
+          <span className="projected-tag">SIMULATION · MODEL</span>
+        </div>
+        <p className="projection-disclaimer">{infra.compute_basis}</p>
+        <div className="headline-grid gb300">
+          <Headline label="Modeled compute wall time" value={formatSeconds(infra.compute_wall_time_seconds)} />
+          <Headline
+            label={`Internal latency (target ≤${profile.cluster_latency_target_ms} ms)`}
+            value={`${compact(infra.internal_latency.value_ms)} ms · ${infra.internal_latency.meets_target ? "PASS" : "FAIL"}`}
+            good={infra.internal_latency.meets_target}
+          />
+          <Headline
+            label={`End-to-end latency (target ≤${profile.end_to_end_latency_target_ms} ms)`}
+            value={`${compact(infra.end_to_end_latency.value_ms)} ms · ${infra.end_to_end_latency.meets_target ? "PASS" : "FAIL"}`}
+            good={infra.end_to_end_latency.meets_target}
+          />
+          <Headline
+            label="Statevector memory headroom"
+            value={memory.headroom_tb === null ? "N/A for this axis" : `${compact(memory.headroom_tb)} TB · ${memory.fits ? "FITS" : "EXCEEDS"}`}
+            good={memory.fits === true}
+          />
+          <Headline label="Rack energy / solution" value={`${compact(infra.energy_kwh)} kWh`} />
+          <Headline label="Illustrative rack cost / solution" value={money(infra.illustrative_compute_cost_usd)} />
+          <Headline label="Value / modeled cost" value={`${compact(h.gb300_value_per_cost)}x`} />
+          <Headline label="Rack configuration" value={`${profile.gpu_count} GPUs · ${profile.gpu_memory_tb} TB HBM3e`} />
+        </div>
+        <p className="projection-disclaimer">
+          {infra.kv_cache_note} Network round-trip ({profile.network_round_trip_ms} ms) is modeled separately from
+          compute and {profile.intra_cluster_overhead_ms} ms in-cluster overhead.
+        </p>
       </div>
 
       {projection.crossover_size !== null && (
@@ -106,16 +144,39 @@ export default function ProjectionPanel({ projection }: { projection: Projection
         <div className="assumptions-grid">
           <Assumption label="Classical scaling" value={projection.complexity_model === "quadratic_precision" ? "~1/ε² (samples)" : `~${projection.assumptions.classical_base}^n`} />
           <Assumption label="Hybrid scaling" value={projection.complexity_model === "quadratic_precision" ? "~1/ε (oracle calls)" : `~n^${projection.assumptions.hybrid_poly_degree}`} />
-          <Assumption label="HPC node power" value={`${projection.assumptions.hpc_node_power_kw} kW`} />
-          <Assumption label="QPU system power" value={`${projection.assumptions.qpu_power_kw} kW`} />
+          <Assumption label="Classical node power" value={`${projection.assumptions.hpc_node_power_kw} kW`} />
+          <Assumption label="GB300 rack power" value={`${profile.rack_power_kw} kW`} />
+          <Assumption label="GPU HBM3e / usable" value={`${profile.gpu_memory_tb} / ${memory.usable_gpu_memory_tb} TB`} />
+          <Assumption label="NVLink aggregate bandwidth" value={`${profile.nvlink_bandwidth_tbps} TB/s`} />
           <Assumption label="Energy price" value={`$${projection.assumptions.energy_cost_per_kwh}/kWh`} />
-          <Assumption label="HPC cost" value={`$${projection.assumptions.hpc_node_cost_per_hour}/node-hr`} />
-          <Assumption label="QPU cost" value={`$${projection.assumptions.qpu_cost_per_hour}/hr`} />
+          <Assumption label="Classical node cost" value={`$${projection.assumptions.hpc_node_cost_per_hour}/node-hr`} />
+          <Assumption label="GB300 rack cost (illustrative)" value={`$${profile.illustrative_rack_cost_per_hour_usd}/rack-hr`} />
           <Assumption label="Value / solution" value={money(projection.assumptions.value_per_solution_usd)} />
         </div>
+        <p>
+          NVIDIA-sourced hardware facts: {profile.gpu_count} Blackwell Ultra GPUs, {profile.grace_cpu_count} Grace
+          CPUs, {profile.gpu_memory_tb} TB GPU memory, {profile.total_fast_memory_tb} TB total fast memory,{" "}
+          {profile.nvlink_bandwidth_tbps} TB/s NVLink bandwidth, and approximately {profile.rack_power_kw} kW rack
+          power. Latency targets, utilization, energy price, and rack-hour cost are user/model assumptions.
+        </p>
+        <p>
+          Sources:{" "}
+          {infra.sources.map((source, index) => (
+            <span key={source.url}>
+              {index > 0 && " · "}
+              <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
+            </span>
+          ))}
+        </p>
       </details>
     </section>
   );
+}
+
+function formatSeconds(seconds: number): string {
+  if (seconds < 0.001) return `${compact(seconds * 1e6)} µs`;
+  if (seconds < 1) return `${compact(seconds * 1e3)} ms`;
+  return `${compact(seconds)} s`;
 }
 
 function Headline({ label, value, good }: { label: string; value: string; good?: boolean }) {

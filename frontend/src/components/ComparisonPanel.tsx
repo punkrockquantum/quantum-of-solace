@@ -65,7 +65,6 @@ function verdict(result: BenchmarkResult): string {
 
 export default function ComparisonPanel({ result }: { result: BenchmarkResult }) {
   const qualities = PATHS.map(({ key }) => quality(result.paths[key]));
-  const bestQuality = Math.max(...qualities);
 
   return (
     <div className="stack">
@@ -75,10 +74,17 @@ export default function ComparisonPanel({ result }: { result: BenchmarkResult })
         {PATHS.map(({ key, title, color }, i) => {
           const path = result.paths[key];
           const q = qualities[i];
-          const winner = q >= bestQuality - 1e-9;
+          const highestPerformance = key === result.outcomes.highest_performance;
+          const optimalValue = key === result.outcomes.optimal_value;
+          const winner = highestPerformance || optimalValue;
           return (
             <div key={key} className={"compare-card" + (winner ? " winner" : "")}>
-              {winner && <span className="winner-badge">best quality</span>}
+              {(highestPerformance || optimalValue) && (
+                <div className="winner-badges">
+                  {highestPerformance && <span className="winner-badge">Highest Performance</span>}
+                  {optimalValue && <span className="winner-badge value">Optimal Value</span>}
+                </div>
+              )}
               <h3 style={{ color }}>{title}</h3>
               <div className="method">{path.method}</div>
               <div className="big-number" style={{ color }}>
@@ -90,6 +96,14 @@ export default function ComparisonPanel({ result }: { result: BenchmarkResult })
               <div className="metric-row">
                 <span className="k">wall time (measured)</span>
                 <span className="v">{formatSeconds(path.elapsed_seconds)}</span>
+              </div>
+              <div className="metric-row">
+                <span className="k">value score (model)</span>
+                <span className="v">{result.outcomes.value_scores[key].toFixed(3)}</span>
+              </div>
+              <div className="metric-row">
+                <span className="k">GB300 cost (model)</span>
+                <span className="v">${result.outcomes.projected_cost_usd[key].toExponential(2)}</span>
               </div>
               {detailRows(result.algorithm, path, result).map((row) => (
                 <div className="metric-row" key={row.k}>
@@ -109,6 +123,10 @@ export default function ComparisonPanel({ result }: { result: BenchmarkResult })
           <strong>Where these numbers come from:</strong> {result.provenance.statement} Quality metric:{" "}
           {result.quality_label.toLowerCase()}.
         </span>
+      </div>
+      <div className="provenance">
+        <span aria-hidden>ⓘ</span>
+        <span><strong>Outcome scoring:</strong> {result.outcomes.definition}</span>
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ Quantum of Solace lets you run hybrid quantum algorithms and see — with honest
   - **Quantum platforms** — ORCA Computing PT-2 (photonic), IQM (superconducting), Atom Computing and QuEra (neutral atoms)
   - **Cloud services** — AWS Braket, Strangeworks
 - **Honest comparison engine**: runs the same problem classically (exact where tractable), pure-quantum (sampling, no classical optimization), and hybrid — and reports *measured* solution quality and wall time. Every number in the UI comes from an actual computation. Results produced in simulation are always labeled as simulation.
-- **Advantage-at-scale projection**: a transparent model that takes this run's *measured* wall times and extrapolates the efficiency, energy, cost, and profitability difference between classical and hybrid as the problem grows — showing where a small per-instance uplift compounds into a large upside past the crossover point. Clearly labeled as a projection, never as a measurement.
+- **Advantage-at-scale projection**: a transparent model that takes this run's *measured local* wall times and extrapolates the efficiency, energy, cost, and value difference as the problem grows. It includes an adjustable NVIDIA GB300 NVL72 rack-scale profile and is clearly labeled as a simulation/model, never as a hardware measurement.
 - **Simple UI**: a local React dashboard designed for people with zero quantum background.
 
 ## Algorithms
@@ -33,7 +33,26 @@ The scientific basis for each (hafnian-based GBS distributions, amplitude estima
 
 ## Measured vs projected — the integrity line
 
-At the small sizes that run instantly in the browser, an exact classical method is cheap and often wins outright. That is reported honestly. The *advantage* story lives in the clearly-labeled scaling **projection**: it anchors on the measured wall times and extrapolates using stated complexity assumptions (exponential/combinatorial classical scaling vs polynomial-per-iteration hybrid scaling) and stated cost/energy figures (HPC node power, $/kWh, $/node-hour, QPU access cost). Projections are always visually and textually marked as a model, never presented as measurements, and all assumptions are shown in the UI and defined in `backend/qsolace/comparison/projection.py`.
+At the small sizes that run instantly in the browser, an exact classical method is cheap and often wins outright. That is reported honestly. The *advantage* story lives in the clearly-labeled scaling **projection**: it anchors on measured local exact-simulator wall times and extrapolates using stated complexity assumptions. No GB300 acceleration factor is invented or claimed. The model applies rack power, memory, latency, energy, and configurable economic assumptions to that projected compute time. Measured results and GB300 modeled results remain separate in both the API and UI.
+
+### NVIDIA GB300 NVL72 model
+
+The named profile represents one liquid-cooled rack-scale system, not a generic HPC node. NVIDIA-sourced defaults are:
+
+- 72 NVIDIA Blackwell Ultra GPUs and 36 NVIDIA Grace CPUs
+- 20 TB aggregate GPU HBM3e, 37 TB total fast memory, and up to 576 TB/s aggregate GPU-memory bandwidth
+- 130 TB/s aggregate NVLink bandwidth
+- approximately 120 kW rack power
+
+Sources: [NVIDIA GB300 NVL72 product page](https://www.nvidia.com/en-us/data-center/gb300-nvl72/) and [NVIDIA DGX GB Rack Scale Systems User Guide — Hardware](https://docs.nvidia.com/dgx/dgxgb200-user-guide/hardware.html).
+
+The following are **user/model assumptions, not NVIDIA specifications or guarantees**: 80% usable GPU-memory fraction, 1.2x statevector allocation overhead, 0.5 ms intra-cluster overhead, 12 ms network round trip, the requested ≤5 ms internal and ≤20 ms end-to-end latency targets, $0.15/kWh electricity, $100/rack-hour illustrative compute cost, and $500 value per solution. NVIDIA does not publish a universal GB300 purchase or cloud price, so the rack-hour input is deliberately adjustable and must not be treated as a quote.
+
+Quantum statevector memory is modeled as 16 bytes per complex128 amplitude plus configurable overhead. A 40-qubit bare statevector is about 17.6 decimal TB; with the default 1.2x overhead it exceeds the profile's 16 TB usable-memory assumption. The UI reports this explicitly rather than implying that all projected workloads fit. **KV cache is an AI-inference resource, not the quantum statevector**; it is mentioned only as an optional co-hosted AI orchestration workload that would further reduce available GPU memory.
+
+Latency is decomposed into projected compute wall time, intra-cluster overhead, and network round trip. A workload receives PASS only when its modeled value actually meets the target; the model never forces algorithm compute below 5 ms.
+
+Outcome badges are also independent: **Highest Performance** maximizes measured solution quality (measured wall time breaks ties), while **Optimal Value** maximizes `70% × normalized measured quality + 30% × inverse projected GB300 rack compute cost`. One path can legitimately win both when the data supports it.
 
 ## Quick start
 
