@@ -3,6 +3,7 @@ import { fetchAlgorithms, fetchBackends, fetchJob, submitJob } from "./api";
 import BackendList from "./components/BackendList";
 import ComparisonPanel from "./components/ComparisonPanel";
 import ConvergenceChart, { type ConvergencePoint } from "./components/ConvergenceChart";
+import ProjectionPanel from "./components/ProjectionPanel";
 import type { Algorithm, BackendInfo, BenchmarkResult, ProgressEvent } from "./types";
 
 type RunState = "idle" | "running" | "done" | "error";
@@ -101,7 +102,14 @@ export default function App() {
     }
   }, [algorithm, backendId, params]);
 
-  const isMaxcut = algorithm?.id === "maxcut-qaoa";
+  const chartLabels: Record<string, { y: string; target: string }> = {
+    "maxcut-qaoa": { y: "expected cut", target: "exact optimum" },
+    "vqe-ising": { y: "energy", target: "exact ground energy" },
+    "quantum-monte-carlo": { y: "estimate", target: "true value" },
+    "cfd-vqls": { y: "fidelity", target: "exact solution" },
+    "gbs-dense-subgraph": { y: "density", target: "densest subgraph" },
+  };
+  const labels = chartLabels[algorithm?.id ?? ""] ?? { y: "value", target: "target" };
 
   return (
     <div className="app">
@@ -171,12 +179,7 @@ export default function App() {
 
           <section className="panel">
             <h2>Hybrid optimization — live</h2>
-            <ConvergenceChart
-              points={points}
-              target={target}
-              targetLabel={isMaxcut ? "exact optimum" : "exact ground energy"}
-              yLabel={isMaxcut ? "expected cut" : "energy"}
-            />
+            <ConvergenceChart points={points} target={target} targetLabel={labels.target} yLabel={labels.y} />
             {feed.length > 0 && (
               <div className="feed" style={{ marginTop: 12 }}>
                 {feed.map((entry, i) => (
@@ -189,7 +192,10 @@ export default function App() {
           </section>
 
           {result ? (
-            <ComparisonPanel result={result} />
+            <>
+              <ComparisonPanel result={result} />
+              {result.projection && <ProjectionPanel projection={result.projection} />}
+            </>
           ) : (
             runState !== "running" && (
               <section className="panel">

@@ -50,6 +50,12 @@ export interface PathResult {
   expected_cut?: number;
   energy?: number;
   energy_error?: number;
+  estimate?: number;
+  error?: number;
+  fidelity?: number;
+  residual?: number;
+  density?: number;
+  oracle_calls?: number;
   bitstring?: string;
   circuit_evaluations?: number;
   evaluations?: number;
@@ -58,12 +64,45 @@ export interface PathResult {
   history?: { iteration: number; best: number }[];
 }
 
+export interface ProjectionCurvePoint {
+  size: number;
+  classical_time: number;
+  hybrid_time: number;
+  classical_energy: number;
+  hybrid_energy: number;
+  classical_cost: number;
+  hybrid_cost: number;
+  speedup: number;
+}
+
+export interface Projection {
+  is_projection: true;
+  disclaimer: string;
+  complexity_model: string;
+  base_size: number;
+  target_size: number;
+  size_label: string;
+  assumptions: Record<string, number>;
+  curve: ProjectionCurvePoint[];
+  crossover_size: number | null;
+  headline: {
+    target_size: number;
+    time_speedup: number;
+    energy_saved_kwh: number;
+    cost_saved_usd: number;
+    roi_multiple: number;
+    hybrid_profit_usd: number;
+    classical_profit_usd: number;
+  };
+}
+
 export interface BenchmarkResult {
   algorithm: string;
   problem: Record<string, unknown>;
-  optimal: { cut?: number; energy?: number; bitstring?: string; source: string };
+  optimal: { cut?: number; energy?: number; density?: number; estimate?: number; fidelity?: number; source: string };
   paths: { classical: PathResult; quantum: PathResult; hybrid: PathResult };
   quality_label: string;
+  projection: Projection;
   provenance: {
     backend_id: string;
     backend_name: string;

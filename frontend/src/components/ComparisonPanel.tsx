@@ -16,22 +16,49 @@ function formatSeconds(seconds: number): string {
   return `${seconds.toFixed(2)} s`;
 }
 
+/** Algorithm-specific secondary metric shown on each card. */
+function detailRows(algorithm: string, path: PathResult, result: BenchmarkResult): { k: string; v: string }[] {
+  const rows: { k: string; v: string }[] = [];
+  switch (algorithm) {
+    case "maxcut-qaoa":
+      if (path.cut !== undefined) rows.push({ k: "cut found", v: `${path.cut} / ${result.optimal.cut}` });
+      break;
+    case "vqe-ising":
+      if (path.energy !== undefined) rows.push({ k: "energy", v: path.energy.toFixed(5) });
+      if (result.optimal.energy !== undefined) rows.push({ k: "exact ground", v: result.optimal.energy.toFixed(5) });
+      break;
+    case "quantum-monte-carlo":
+      if (path.estimate !== undefined) rows.push({ k: "estimate", v: path.estimate.toFixed(5) });
+      if (path.error !== undefined) rows.push({ k: "abs. error", v: path.error.toExponential(2) });
+      if (path.oracle_calls !== undefined) rows.push({ k: "oracle calls", v: path.oracle_calls.toLocaleString() });
+      break;
+    case "cfd-vqls":
+      if (path.fidelity !== undefined) rows.push({ k: "fidelity", v: path.fidelity.toFixed(4) });
+      if (path.residual !== undefined) rows.push({ k: "residual", v: path.residual.toExponential(2) });
+      break;
+    case "gbs-dense-subgraph":
+      if (path.density !== undefined) rows.push({ k: "density", v: path.density.toFixed(3) });
+      break;
+  }
+  const evals = path.circuit_evaluations ?? path.evaluations;
+  if (evals !== undefined) rows.push({ k: "evaluations", v: evals.toLocaleString() });
+  return rows;
+}
+
 function verdict(result: BenchmarkResult): string {
   const hybrid = quality(result.paths.hybrid);
   const quantum = quality(result.paths.quantum);
-  const isMaxcut = result.algorithm === "maxcut-qaoa";
-  const unit = isMaxcut ? "of the mathematically optimal answer" : "of the exact ground-state quality";
   const hybridPct = (hybrid * 100).toFixed(1);
   const parts = [
-    `The hybrid workflow reached ${hybridPct}% ${unit}, verified against the exact classical solution.`,
+    `The hybrid workflow reached ${hybridPct}% on ${result.quality_label.toLowerCase()}, verified against the exact classical solution.`,
   ];
-  if (hybrid > quantum) {
+  if (hybrid > quantum + 0.005) {
     parts.push(
-      `Adding the classical optimizer improved on pure quantum sampling by ${((hybrid - quantum) * 100).toFixed(1)} percentage points.`,
+      `Adding the classical optimizer improved on pure quantum by ${((hybrid - quantum) * 100).toFixed(1)} percentage points.`,
     );
   }
   parts.push(
-    "At this demo size the exact classical solve is instant - but its cost doubles with every extra variable, while the hybrid loop's per-iteration cost grows polynomially. That crossover is the computational advantage this platform is built to measure.",
+    "At this demo size the exact classical method is cheap and often wins outright - that is expected and honest. The advantage appears at scale: see the projection below.",
   );
   return parts.join(" ");
 }
@@ -39,7 +66,6 @@ function verdict(result: BenchmarkResult): string {
 export default function ComparisonPanel({ result }: { result: BenchmarkResult }) {
   const qualities = PATHS.map(({ key }) => quality(result.paths[key]));
   const bestQuality = Math.max(...qualities);
-  const isMaxcut = result.algorithm === "maxcut-qaoa";
 
   return (
     <div className="stack">
@@ -62,35 +88,15 @@ export default function ComparisonPanel({ result }: { result: BenchmarkResult })
                 <div style={{ width: `${Math.max(q * 100, 2)}%`, background: color }} />
               </div>
               <div className="metric-row">
-                <span className="k">wall time</span>
+                <span className="k">wall time (measured)</span>
                 <span className="v">{formatSeconds(path.elapsed_seconds)}</span>
               </div>
-              {isMaxcut && path.cut !== undefined && (
-                <div className="metric-row">
-                  <span className="k">cut found</span>
-                  <span className="v">
-                    {path.cut} / {result.optimal.cut}
-                  </span>
+              {detailRows(result.algorithm, path, result).map((row) => (
+                <div className="metric-row" key={row.k}>
+                  <span className="k">{row.k}</span>
+                  <span className="v">{row.v}</span>
                 </div>
-              )}
-              {!isMaxcut && path.energy !== undefined && (
-                <div className="metric-row">
-                  <span className="k">energy</span>
-                  <span className="v">{path.energy.toFixed(5)}</span>
-                </div>
-              )}
-              {!isMaxcut && result.optimal.energy !== undefined && (
-                <div className="metric-row">
-                  <span className="k">exact ground</span>
-                  <span className="v">{result.optimal.energy.toFixed(5)}</span>
-                </div>
-              )}
-              {(path.circuit_evaluations ?? path.evaluations) !== undefined && (
-                <div className="metric-row">
-                  <span className="k">evaluations</span>
-                  <span className="v">{(path.circuit_evaluations ?? path.evaluations)?.toLocaleString()}</span>
-                </div>
-              )}
+              ))}
               {path.scaling_note && <div className="scaling-note">{path.scaling_note}</div>}
             </div>
           );

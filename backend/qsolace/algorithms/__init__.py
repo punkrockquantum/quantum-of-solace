@@ -49,6 +49,40 @@ ALGORITHMS: list[dict[str, Any]] = [
             {"id": "seed", "label": "Random seed", "type": "int", "default": 7, "min": 0, "max": 999999},
         ],
     },
+    {
+        "id": "gbs-dense-subgraph",
+        "name": "Dense communities (GBS, life sciences)",
+        "summary": "Find the most tightly-connected cluster in an interaction network - e.g. a protein complex or a drug-similarity motif - using Gaussian Boson Sampling.",
+        "params": [
+            {"id": "num_nodes", "label": "Network size (nodes)", "type": "int", "default": 8, "min": 4, "max": 10},
+            {"id": "subgraph_size", "label": "Community size (even)", "type": "int", "default": 4, "min": 2, "max": 8},
+            {"id": "edge_probability", "label": "Connection density", "type": "float", "default": 0.5, "min": 0.2, "max": 1.0},
+            {"id": "shots", "label": "GBS samples", "type": "int", "default": 400, "min": 50, "max": 4000},
+            {"id": "seed", "label": "Random seed", "type": "int", "default": 7, "min": 0, "max": 999999},
+        ],
+    },
+    {
+        "id": "quantum-monte-carlo",
+        "name": "Expectation estimation (Quantum Monte Carlo)",
+        "summary": "Estimate an average or integral - like a financial expected payoff or a physics quantity - with a quadratic reduction in samples via quantum amplitude estimation.",
+        "params": [
+            {"id": "true_value", "label": "Target expectation (a)", "type": "float", "default": 0.15, "min": 0.02, "max": 0.4},
+            {"id": "evaluation_levels", "label": "Estimation depth (Grover levels)", "type": "int", "default": 6, "min": 2, "max": 10},
+            {"id": "shots", "label": "Measurement shots", "type": "int", "default": 1024, "min": 128, "max": 8192},
+            {"id": "seed", "label": "Random seed", "type": "int", "default": 7, "min": 0, "max": 999999},
+        ],
+    },
+    {
+        "id": "cfd-vqls",
+        "name": "Fluid dynamics (Variational Quantum Linear Solver)",
+        "summary": "Solve the linear system behind a computational fluid dynamics step (a 1D Poisson flow) with a hybrid quantum linear solver.",
+        "params": [
+            {"id": "num_qubits", "label": "Grid resolution (qubits)", "type": "int", "default": 3, "min": 2, "max": 5},
+            {"id": "layers", "label": "Ansatz depth", "type": "int", "default": 2, "min": 1, "max": 5},
+            {"id": "max_iterations", "label": "Optimizer iterations", "type": "int", "default": 600, "min": 40, "max": 1200},
+            {"id": "seed", "label": "Random seed", "type": "int", "default": 7, "min": 0, "max": 999999},
+        ],
+    },
 ]
 
 
@@ -66,4 +100,16 @@ def run_comparison(
         from qsolace.algorithms import vqe_ising
 
         return vqe_ising.run_comparison(params, backend, progress)
+    if algorithm_id == "gbs-dense-subgraph":
+        from qsolace.algorithms import gbs_lifesciences
+
+        return gbs_lifesciences.run_comparison(params, backend, progress)
+    if algorithm_id == "quantum-monte-carlo":
+        from qsolace.algorithms import quantum_monte_carlo
+
+        return quantum_monte_carlo.run_comparison(params, backend, progress)
+    if algorithm_id == "cfd-vqls":
+        from qsolace.algorithms import cfd_hybrid
+
+        return cfd_hybrid.run_comparison(params, backend, progress)
     raise KeyError(f"unknown algorithm '{algorithm_id}'")

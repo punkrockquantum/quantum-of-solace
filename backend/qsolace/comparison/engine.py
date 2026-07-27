@@ -9,7 +9,18 @@ from __future__ import annotations
 from typing import Any
 
 from qsolace.algorithms import ProgressCallback, run_comparison
+from qsolace.comparison.projection import project
 from qsolace.core.backend import BackendMode, QuantumBackend
+
+#: How to read the "problem size" out of each algorithm's problem dict, so the
+#: scaling projection can anchor on it.
+_PROBLEM_SIZE_KEY: dict[str, str] = {
+    "maxcut-qaoa": "num_nodes",
+    "vqe-ising": "num_qubits",
+    "gbs-dense-subgraph": "num_nodes",
+    "cfd-vqls": "num_qubits",
+    "quantum-monte-carlo": "evaluation_levels",
+}
 
 
 def run_benchmark(
@@ -28,7 +39,20 @@ def run_benchmark(
         "simulated": info.mode != BackendMode.CONNECTED or info.kind.value == "simulator",
         "statement": _provenance_statement(info),
     }
+    result["projection"] = _build_projection(algorithm_id, result)
     return result
+
+
+def _build_projection(algorithm_id: str, result: dict[str, Any]) -> dict[str, Any]:
+    paths = result["paths"]
+    size_key = _PROBLEM_SIZE_KEY.get(algorithm_id, "num_qubits")
+    problem_size = int(result.get("problem", {}).get(size_key, 8))
+    measured = {
+        "classical_seconds": paths["classical"]["elapsed_seconds"],
+        "hybrid_seconds": paths["hybrid"]["elapsed_seconds"],
+        "problem_size": problem_size,
+    }
+    return project(algorithm_id, measured)
 
 
 def _provenance_statement(info) -> str:

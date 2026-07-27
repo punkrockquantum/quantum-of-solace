@@ -28,7 +28,7 @@ def test_backends_listing() -> None:
 def test_algorithms_listing() -> None:
     response = client.get("/api/algorithms")
     ids = [a["id"] for a in response.json()]
-    assert ids == ["maxcut-qaoa", "vqe-ising"]
+    assert ids == ["maxcut-qaoa", "vqe-ising", "gbs-dense-subgraph", "quantum-monte-carlo", "cfd-vqls"]
 
 
 def test_submit_unknown_algorithm() -> None:
@@ -69,6 +69,10 @@ def test_job_lifecycle_and_result_provenance() -> None:
     # honesty contract: provenance must disclose simulation
     assert result["provenance"]["simulated"] is True
     assert "simulation" in result["provenance"]["statement"].lower() or "exact" in result["provenance"]["statement"].lower()
+    # scaling projection is attached and labelled as a model, not a measurement
+    assert result["projection"]["is_projection"] is True
+    assert "PROJECTION" in result["projection"]["disclaimer"]
+    assert len(result["projection"]["curve"]) > 1
 
     events = client.get(f"/api/jobs/{job_id}/events")
     assert events.status_code == 200
